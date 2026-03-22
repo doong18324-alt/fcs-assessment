@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FCS 노쇠중심스펙트럼 평가</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root {
+  --primary: #1a5276;
+  --primary-light: #2980b9;
+  --primary-pale: #d6eaf8;
+  --accent: #e67e22;
+  --accent-light: #fdebd0;
+  --success: #27ae60;
+  --danger: #c0392b;
+  --bg: #f8f9fb;
+  --card: #ffffff;
+  --text: #2c3e50;
+  --text-light: #7f8c8d;
+  --border: #e0e4e8;
+  --radius: 12px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.1);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Noto Sans KR','IBM Plex Sans',sans-serif; background:var(--bg); color:var(--text); line-height:1.6; min-height:100vh; }
+
+/* Header */
+.header { background:linear-gradient(135deg, var(--primary) 0%, #1a6fa0 100%); color:#fff; padding:20px 0; position:sticky; top:0; z-index:100; box-shadow:0 2px 20px rgba(0,0,0,0.15); }
+.header-inner { max-width:800px; margin:0 auto; padding:0 20px; display:flex; align-items:center; justify-content:space-between; }
+.header h1 { font-size:1.3rem; font-weight:700; letter-spacing:-0.02em; }
+.header .subtitle { font-size:0.8rem; opacity:0.8; font-weight:300; }
+
+/* Progress */
+.progress-wrap { max-width:800px; margin:0 auto; padding:16px 20px 0; }
+.progress-bar { height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+.progress-fill { height:100%; background:linear-gradient(90deg, var(--primary-light), var(--accent)); border-radius:3px; transition:width 0.5s ease; }
+.progress-text { font-size:0.78rem; color:var(--text-light); margin-top:6px; text-align:right; }
+
+/* Step indicators */
+.steps-nav { max-width:800px; margin:0 auto; padding:12px 20px; display:flex; gap:4px; flex-wrap:wrap; }
+.step-dot { width:32px; height:32px; border-radius:50%; border:2px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:600; color:var(--text-light); transition:all 0.3s; cursor:pointer; flex-shrink:0; }
+.step-dot.active { border-color:var(--primary-light); background:var(--primary-light); color:#fff; }
+.step-dot.done { border-color:var(--success); background:var(--success); color:#fff; }
+
+/* Container */
+.container { max-width:800px; margin:0 auto; padding:20px; }
+.card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:32px; margin-bottom:20px; border:1px solid var(--border); }
+.card-title { font-size:1.2rem; font-weight:700; color:var(--primary); margin-bottom:4px; }
+.card-subtitle { font-size:0.85rem; color:var(--text-light); margin-bottom:24px; padding-bottom:16px; border-bottom:1px solid var(--border); }
+
+/* Domain badge */
+.domain-badge { display:inline-block; padding:3px 12px; border-radius:20px; font-size:0.72rem; font-weight:600; letter-spacing:0.03em; margin-bottom:12px; }
+.domain-B { background:#d5f5e3; color:#1e8449; }
+.domain-P { background:#d6eaf8; color:#1a5276; }
+.domain-S { background:#fdebd0; color:#b9770e; }
+.domain-F { background:#fadbd8; color:#922b21; }
+.domain-CS { background:#f5eef8; color:#6c3483; }
+
+/* Form elements */
+.form-group { margin-bottom:20px; }
+.form-group label { display:block; font-weight:500; margin-bottom:6px; font-size:0.9rem; }
+.form-group .hint { font-size:0.78rem; color:var(--text-light); margin-bottom:6px; }
+input[type="text"], input[type="number"], select {
+  width:100%; padding:10px 14px; border:1.5px solid var(--border); border-radius:8px;
+  font-size:0.95rem; font-family:inherit; transition:border 0.2s; background:#fff;
+}
+input:focus, select:focus { outline:none; border-color:var(--primary-light); box-shadow:0 0 0 3px rgba(41,128,185,0.1); }
+
+/* Question item */
+.q-item { padding:14px 16px; margin-bottom:8px; border-radius:8px; border:1.5px solid var(--border); transition:all 0.2s; background:#fff; }
+.q-item:hover { border-color:var(--primary-pale); background:#fafcfe; }
+.q-item.answered { border-color:var(--success); background:#f0faf4; }
+.q-num { font-size:0.75rem; font-weight:600; color:var(--primary-light); margin-bottom:4px; }
+.q-text { font-size:0.9rem; font-weight:500; margin-bottom:10px; line-height:1.5; }
+.q-options { display:flex; flex-wrap:wrap; gap:8px; }
+.q-opt { padding:7px 16px; border:1.5px solid var(--border); border-radius:20px; font-size:0.82rem;
+  cursor:pointer; transition:all 0.2s; background:#fff; user-select:none; }
+.q-opt:hover { border-color:var(--primary-light); background:var(--primary-pale); }
+.q-opt.selected { border-color:var(--primary); background:var(--primary); color:#fff; font-weight:500; }
+
+/* CCI checkboxes */
+.cci-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.cci-item { display:flex; align-items:center; gap:8px; padding:8px 12px; border:1.5px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.2s; font-size:0.85rem; }
+.cci-item:hover { border-color:var(--primary-pale); }
+.cci-item.checked { border-color:var(--primary-light); background:var(--primary-pale); }
+.cci-item input { display:none; }
+.cci-weight { font-size:0.7rem; font-weight:600; color:var(--accent); margin-left:auto; white-space:nowrap; }
+
+/* Buttons */
+.btn-row { display:flex; gap:12px; justify-content:space-between; margin-top:24px; }
+.btn { padding:12px 32px; border:none; border-radius:8px; font-size:0.95rem; font-weight:600; cursor:pointer; transition:all 0.2s; font-family:inherit; }
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:var(--primary-light); transform:translateY(-1px); box-shadow:var(--shadow); }
+.btn-secondary { background:var(--border); color:var(--text); }
+.btn-secondary:hover { background:#d0d4d8; }
+.btn-accent { background:var(--accent); color:#fff; }
+.btn-accent:hover { background:#d35400; }
+.btn:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+
+/* Gate */
+.gate-box { background:var(--accent-light); border:2px solid var(--accent); border-radius:var(--radius); padding:24px; text-align:center; }
+.gate-box .gate-q { font-size:1.05rem; font-weight:600; margin-bottom:16px; }
+.gate-btns { display:flex; gap:16px; justify-content:center; }
+.gate-btn { padding:14px 40px; border:2px solid var(--border); border-radius:8px; font-size:1rem; font-weight:600; cursor:pointer; background:#fff; transition:all 0.2s; }
+.gate-btn:hover { transform:translateY(-2px); box-shadow:var(--shadow); }
+.gate-btn.yes { border-color:var(--danger); color:var(--danger); }
+.gate-btn.yes:hover, .gate-btn.yes.selected { background:var(--danger); color:#fff; }
+.gate-btn.no { border-color:var(--success); color:var(--success); }
+.gate-btn.no:hover, .gate-btn.no.selected { background:var(--success); color:#fff; }
+
+/* Quantitative optional section */
+.quant-section { border:2px dashed var(--border); border-radius:var(--radius); padding:24px; margin-bottom:20px; }
+.quant-section .section-label { display:flex; align-items:center; gap:8px; font-weight:600; color:var(--primary); margin-bottom:4px; }
+.quant-section .optional-tag { font-size:0.7rem; background:var(--accent-light); color:var(--accent); padding:2px 10px; border-radius:10px; font-weight:600; }
+.quant-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+.quant-field label { font-size:0.82rem; font-weight:500; }
+.quant-field input { margin-top:4px; }
+
+/* Results */
+.result-card { text-align:center; padding:40px 32px; }
+.result-card h2 { font-size:1.5rem; color:var(--primary); margin-bottom:8px; }
+.radar-wrap { max-width:420px; margin:20px auto; }
+.type-result { margin-top:24px; padding:20px; border-radius:var(--radius); text-align:left; }
+.type-result h3 { font-size:1.1rem; margin-bottom:8px; }
+.type-result p { font-size:0.9rem; color:var(--text-light); }
+.score-table { width:100%; margin-top:20px; border-collapse:collapse; text-align:left; }
+.score-table th { background:var(--primary); color:#fff; padding:10px 14px; font-size:0.82rem; }
+.score-table td { padding:10px 14px; border-bottom:1px solid var(--border); font-size:0.85rem; }
+.score-table tr:nth-child(even) td { background:#f8f9fb; }
+
+.hidden { display:none !important; }
+
+/* Toast */
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(100px); background:#2c3e50; color:#fff; padding:12px 28px; border-radius:8px; font-size:0.88rem; z-index:9999; transition:transform 0.4s ease; }
+.toast.show { transform:translateX(-50%) translateY(0); }
+
+/* Mobile */
+@media(max-width:600px) {
+  .card { padding:20px 16px; }
+  .cci-grid { grid-template-columns:1fr; }
+  .quant-grid { grid-template-columns:1fr; }
+  .q-options { flex-direction:column; }
+  .header h1 { font-size:1.1rem; }
+  .btn { padding:10px 20px; font-size:0.88rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <div class="subtitle">한국디지털헬스케어진흥재단・광주보건대학교・AI스포츠테크연구센터</div>
+      <h1>FCS 노쇠중심스펙트럼 평가</h1>
+      <div class="subtitle">BPS-FN Model | Frailty-Centered Spectrum</div>
+    </div>
+  </div>
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <div class="progress-text" id="progressText">0%</div>
+</div>
+
+<div class="steps-nav" id="stepsNav"></div>
+
+<div class="container" id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════
+// GOOGLE SHEETS CONFIG
+// ══════════════════════════════════════
+// ★ 아래 URL을 본인의 Apps Script 웹앱 URL로 교체하세요
+const APPS_SCRIPT_URL = '';
+
+// ══════════════════════════════════════
+// DATA MODEL
+// ══════════════════════════════════════
+const state = {
+  step: 0,
+  personal: { name:'', gender:'', age:'', height:'', weight:'' },
+  answers: {},    // key: "sectionId-qIndex" => value (score)
+  cciChecked: {}, // key: disease name => weight
+  gateAnswer: null, // null | 'yes' | 'no'
+  quant: {},
+};
+
+// ══════════════════════════════════════
+// SURVEY DEFINITIONS
+// ══════════════════════════════════════
+const sections = [
+  { id:'personal', title:'기본 정보 입력', domain:null, subtitle:'평가 대상자의 기본 정보를 입력해 주세요.' },
+
+  // ── B Domain ──
+  { id:'kfrail', title:'K-FRAIL (한국형 노쇠 선별도구)', domain:'B',
+    subtitle:'5문항 | 0점(정상), 1-2점(전노쇠), 3-5점(노쇠)',
+    questions:[
+      { text:'지난 4주 동안 피곤하다고 느낀 적이 얼마나 자주 있었습니까?', opts:['항상/대부분 (1점)','가끔/거의없음 (0점)'], scores:[1,0] },
+      { text:'쉬지 않고 10개의 계단을 오르는 데 어려움이 있습니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'쉬지 않고 300m를 걷는 데 어려움이 있습니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'의사로부터 진단받은 질병이 5개 이상입니까? (고혈압, 당뇨병, 암, 만성폐질환, 심근경색, 심부전, 협심증, 천식, 관절염, 뇌졸중, 신장질환)', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'지난 1년간 체중이 5% 이상 감소하였습니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+    ]
+  },
+  { id:'mna', title:'MNA-SF (간이영양평가)', domain:'B',
+    subtitle:'6문항 | 12-14점(정상), 8-11점(위험), 0-7점(영양불량)',
+    questions:[
+      { text:'지난 3개월간 식욕부진, 소화불량, 저작/연하 곤란으로 식사량이 줄었습니까?', opts:['심한 감소 (0점)','중등도 감소 (1점)','변화없음 (2점)'], scores:[0,1,2] },
+      { text:'지난 3개월간 체중 감소가 있었습니까?', opts:['3kg 이상 감소 (0점)','모름 (1점)','1-3kg 감소 (2점)','변화없음 (3점)'], scores:[0,1,2,3] },
+      { text:'거동 상태는 어떻습니까?', opts:['침상/휠체어 (0점)','일어날 수 있으나 외출 못함 (1점)','외출 가능 (2점)'], scores:[0,1,2] },
+      { text:'지난 3개월간 정신적 스트레스나 급성 질환을 앓은 적이 있습니까?', opts:['예 (0점)','아니오 (2점)'], scores:[0,2] },
+      { text:'신경정신과적 문제가 있습니까?', opts:['심한 치매/우울 (0점)','경한 치매 (1점)','없음 (2점)'], scores:[0,1,2] },
+      { text:'체질량지수(BMI) — 키/몸무게 기반 자동 계산됨', opts:['19 미만 (0점)','19-21 (1점)','21-23 (2점)','23 이상 (3점)'], scores:[0,1,2,3], autoBMI: true },
+    ]
+  },
+  { id:'cci', title:'CCI (찰슨동반질환지수)', domain:'B',
+    subtitle:'17개 질환 | 해당 질환을 선택하세요 (가중치 자동 합산)', isCCI: true },
+  { id:'meds', title:'복용 약물 수', domain:'B',
+    subtitle:'현재 복용 중인 약물 개수를 입력하세요', isMeds: true },
+
+  // ── P Domain ──
+  { id:'gds', title:'GDS-SF (노인우울척도 단축형)', domain:'P',
+    subtitle:'15문항 | 0-4점(정상), 5-9점(경증우울), 10-15점(중등도-중증우울)',
+    questions:[
+      { text:'현재 생활에 대체적으로 만족하십니까?', opts:['예 (0점)','아니오 (1점)'], scores:[0,1] },
+      { text:'요즈음 들어 활동량이나 의욕이 많이 떨어지셨습니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'자신이 헛되이 살고 있다고 느끼십니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'생활이 지루하게 느껴질 때가 많습니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'평소에 기분은 상쾌한 편이십니까?', opts:['예 (0점)','아니오 (1점)'], scores:[0,1] },
+      { text:'자신에게 불길한 일이 닥칠 것 같아 불안하십니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'대체로 마음이 즐거운 편이십니까?', opts:['예 (0점)','아니오 (1점)'], scores:[0,1] },
+      { text:'절망적이라는 느낌이 자주 드십니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'바깥에 나가기가 싫고 집에만 있고 싶습니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'비슷한 나이의 다른 노인들보다 기억력이 더 나쁘다고 느끼십니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'현재 살아있다는 것이 즐겁게 생각되십니까?', opts:['예 (0점)','아니오 (1점)'], scores:[0,1] },
+      { text:'지금의 내 자신이 아무 쓸모없는 사람이라고 느끼십니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'기력이 좋은 편이십니까?', opts:['예 (0점)','아니오 (1점)'], scores:[0,1] },
+      { text:'지금 자신의 처지가 아무런 희망도 없다고 느끼십니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+      { text:'자신이 다른 사람들의 처지보다 더 못하다고 생각하십니까?', opts:['예 (1점)','아니오 (0점)'], scores:[1,0] },
+    ]
+  },
+  { id:'kmmse', title:'K-MMSE (한국형 간이정신상태검사)', domain:'P',
+    subtitle:'30문항 | 화면의 안내를 따라 스스로 또는 보조자와 함께 수행하세요', isKMMSE: true,
+    kmmseItems: [
+      // ── 시간 지남력 (5) ──
+      { group:'시간 지남력 (5점)', instruction:'🕐 아래 질문에 대해 도움 없이 스스로 대답해 보세요. 달력이나 시계를 보지 마세요.', text:'올해는 몇 년도입니까?', hint:'정확한 연도(예: 2026년)를 말해야 정답입니다.' },
+      { group:'시간 지남력 (5점)', text:'지금은 몇 월입니까?', hint:'정확한 월(예: 3월)을 말해야 정답입니다.' },
+      { group:'시간 지남력 (5점)', text:'오늘은 며칠입니까?', hint:'정확한 날짜(예: 22일)를 말해야 정답입니다.' },
+      { group:'시간 지남력 (5점)', text:'오늘은 무슨 요일입니까?', hint:'정확한 요일(예: 토요일)을 말해야 정답입니다.' },
+      { group:'시간 지남력 (5점)', text:'지금은 무슨 계절입니까?', hint:'봄, 여름, 가을, 겨울 중 하나를 정확히 말해야 정답입니다.' },
+      // ── 장소 지남력 (5) ──
+      { group:'장소 지남력 (5점)', instruction:'📍 지금 있는 장소에 대해 도움 없이 대답해 보세요.', text:'지금 있는 곳은 무슨 도(시)입니까?', hint:'예: "서울특별시", "광주광역시" 등 정확히 말해야 정답입니다.' },
+      { group:'장소 지남력 (5점)', text:'여기는 무슨 구(군)입니까?', hint:'예: "북구", "동구" 등 행정구역을 정확히 말해야 합니다.' },
+      { group:'장소 지남력 (5점)', text:'여기는 무슨 동(읍/면)입니까?', hint:'정확한 동/읍/면 이름을 말해야 정답입니다.' },
+      { group:'장소 지남력 (5점)', text:'이 건물의 이름은 무엇입니까?', hint:'건물 이름이나 기관명(예: "보건소", "복지관")을 말해야 합니다.' },
+      { group:'장소 지남력 (5점)', text:'지금 몇 층에 있습니까?', hint:'정확한 층수를 말해야 정답입니다.' },
+      // ── 기억등록 (3) ──
+      { group:'기억등록 (3점)', instruction:'🧠 <strong>보조자가 읽어주세요:</strong><br><br>지금부터 세 가지 물건 이름을 말씀드리겠습니다.<br>잘 듣고 <strong>따라 말해 주세요.</strong> 나중에 다시 물어볼 테니 <strong>꼭 기억해 두세요.</strong><br><br>천천히, 1초 간격으로 하나씩 말해주세요:<br><span style="font-size:1.3rem;font-weight:700;color:var(--primary);letter-spacing:0.3em;">"비행기 … 연필 … 소나무"</span>', text:'첫 번째 단어 "비행기"를 정확히 따라 말했습니까?', hint:'발음이 분명해야 합니다. "비행기"와 비슷한 발음도 정답 처리합니다.' },
+      { group:'기억등록 (3점)', text:'두 번째 단어 "연필"을 정확히 따라 말했습니까?', hint:'' },
+      { group:'기억등록 (3점)', text:'세 번째 단어 "소나무"를 정확히 따라 말했습니까?', hint:'⚠️ 채점 후 꼭 말해주세요: "이 세 단어를 잘 기억해 두세요. 조금 있다가 다시 물어봅니다."' },
+      // ── 주의집중 및 계산 (5) ──
+      { group:'주의집중 및 계산 (5점)', instruction:'🔢 <strong>보조자가 읽어주세요:</strong><br><br>"100에서 7을 빼면 얼마입니까?"<br>답한 뒤 → "거기서 7을 또 빼면 얼마입니까?"<br>이렇게 <strong>총 5번</strong> 반복합니다.<br><br>정답 순서: <strong>93 → 86 → 79 → 72 → 65</strong><br><span style="font-size:0.82rem;">※ 앞 문제를 틀렸더라도, 본인이 말한 답에서 7을 정확히 뺐으면 정답입니다.<br>예) 100-7=91(오답) → 91-7=84(정답 처리)</span>', text:'첫 번째: 100 - 7 = ? (정답: 93)', hint:'93이라고 답하면 정답' },
+      { group:'주의집중 및 계산 (5점)', text:'두 번째: "거기서 7을 또 빼면?" (정답: 86)', hint:'본인이 말한 이전 답에서 7을 정확히 뺐으면 정답 처리합니다.' },
+      { group:'주의집중 및 계산 (5점)', text:'세 번째: "거기서 7을 또 빼면?" (정답: 79)', hint:'' },
+      { group:'주의집중 및 계산 (5점)', text:'네 번째: "거기서 7을 또 빼면?" (정답: 72)', hint:'' },
+      { group:'주의집중 및 계산 (5점)', text:'다섯 번째: "거기서 7을 또 빼면?" (정답: 65)', hint:'' },
+      // ── 기억회상 (3) ──
+      { group:'기억회상 (3점)', instruction:'💭 <strong>보조자가 읽어주세요:</strong><br><br>"아까 제가 기억하라고 했던 <strong>세 가지 물건 이름</strong>이 뭐였습니까? 말해 보세요."<br><br><span style="color:var(--danger);font-weight:600;">⚠️ 절대로 힌트를 주지 마세요!</span> 순서는 상관없습니다.', text:'"비행기"를 기억해서 말했습니까?', hint:'어떠한 힌트(글자 알려주기, 몸짓 등)도 주면 안 됩니다.' },
+      { group:'기억회상 (3점)', text:'"연필"을 기억해서 말했습니까?', hint:'' },
+      { group:'기억회상 (3점)', text:'"소나무"를 기억해서 말했습니까?', hint:'' },
+      // ── 이름대기 (2) ──
+      { group:'이름대기 (2점)', instruction:'👁️ <strong>준비물:</strong> 시계(손목시계·벽시계·탁상시계 등)와 연필을 실물로 준비하세요.<br>실물이 없으면 아래 그림을 가리켜 주세요.<br><br>물건을 가리키며 물어보세요: <strong>"이것을 무엇이라고 합니까?"</strong>', text:'시계를 가리키며 — "이것을 무엇이라고 합니까?" → 정확히 답했습니까?', hint:'"시계", "손목시계", "벽시계" 모두 정답. "시간 보는 것" 등은 오답.' },
+      { group:'이름대기 (2점)', text:'연필을 가리키며 — "이것을 무엇이라고 합니까?" → 정확히 답했습니까?', hint:'"연필"만 정답. "펜", "볼펜"은 오답입니다.' },
+      // ── 따라말하기 (1) ──
+      { group:'따라말하기 (1점)', instruction:'🗣️ <strong>보조자가 읽어주세요:</strong><br><br>"제가 하는 말을 그대로 <strong>따라 말해 보세요.</strong> 한 번만 말씀드립니다."<br><br>천천히, 또렷하게 말해주세요:<br><span style="font-size:1.2rem;font-weight:700;color:var(--primary);">"간장 공장 공장장"</span><br><br><span style="font-size:0.82rem;">※ 기회는 <strong>딱 한 번</strong>입니다. 다시 말해달라고 해도 반복하지 마세요.</span>', text:'"간장 공장 공장장" — 정확하게 따라 말했습니까?', hint:'모든 글자의 발음이 분명해야 합니다. 한 글자라도 틀리면 오답.' },
+      // ── 3단계 명령 (3) ──
+      { group:'3단계 명령 (3점)', instruction:'📄 <strong>준비물:</strong> A4 종이 한 장을 준비하세요.<br><br>종이를 건네주며 <strong>아래 문장을 한 번만</strong> 말해주세요:<br><span style="font-size:1.05rem;font-weight:700;color:var(--primary);">"종이를 뒤집어서, 반으로 접어서, 저에게 주세요."</span><br><br><span style="font-size:0.82rem;">※ 한 번만 말합니다. 다시 말해달라고 해도 반복하지 마세요.<br>※ 세 동작을 각각 독립적으로 채점합니다.</span>', text:'① 종이를 뒤집었습니까?', hint:'앞뒤를 뒤집는 동작을 했으면 정답' },
+      { group:'3단계 명령 (3점)', text:'② 반으로 접었습니까?', hint:'어떤 방향이든 반으로 접으면 정답' },
+      { group:'3단계 명령 (3점)', text:'③ 검사하는 사람에게 종이를 주었습니까?', hint:'건네주는 행동을 했으면 정답' },
+      // ── 읽기 수행 (1) ──
+      { group:'읽기 수행 (1점)', instruction:'👀 아래 큰 글씨를 가리키며 말해주세요:<br><strong>"여기에 적힌 대로 해 보세요."</strong><br><br><div style="text-align:center;padding:20px;margin:12px 0;border:3px solid var(--primary);border-radius:12px;background:white;"><span style="font-size:2.5rem;font-weight:900;color:var(--text);letter-spacing:0.15em;">눈을 감으세요</span></div><span style="font-size:0.82rem;">※ 소리 내어 읽기만 하면 안 됩니다. <strong>실제로 눈을 감아야</strong> 정답입니다.</span>', text:'글을 읽고 실제로 눈을 감았습니까?', hint:'소리 내어 읽었더라도, 눈을 감는 행동을 해야 정답.' },
+      // ── 쓰기 (1) ──
+      { group:'쓰기 (1점)', instruction:'✍️ <strong>준비물:</strong> 종이와 연필(또는 펜)을 주세요.<br><br>말해주세요: <strong>"여기에 아무 문장이나 하나만 써 보세요."</strong><br><br><span style="font-size:0.82rem;">※ 주어와 동사가 포함된 <strong>완전한 문장</strong>이어야 합니다.<br>✅ 정답 예: "오늘 날씨가 좋다", "밥을 먹었다"<br>❌ 오답 예: 단어만 씀, 이름만 씀, 문장이 아닌 것</span>', text:'주어와 동사가 포함된 완전한 문장을 썼습니까?', hint:'맞춤법은 상관없습니다. 문장 구조(주어+서술어)가 갖춰지면 정답.' },
+      // ── 시공간 모사 (1) ──
+      { group:'시공간 — 겹친 오각형 따라 그리기 (1점)', instruction:'✏️ <strong>준비물:</strong> 종이와 연필(또는 펜)을 주세요.<br><br>아래 그림을 가리키며 말해주세요: <strong>"이 그림을 그대로 따라 그려 보세요."</strong><br><br><div style="text-align:center;padding:16px;margin:12px 0;border:2px solid var(--border);border-radius:12px;background:white;"><svg width="200" height="140" viewBox="0 0 200 140"><polygon points="50,10 90,50 75,95 25,95 10,50" fill="none" stroke="#1F4E79" stroke-width="2.5"/><polygon points="110,10 150,50 135,95 85,95 70,50" fill="none" stroke="#1F4E79" stroke-width="2.5"/></svg></div><span style="font-size:0.82rem;">※ 채점 기준:<br>✅ 두 도형 모두 <strong>5개의 각</strong>이 있어야 합니다.<br>✅ 두 도형이 <strong>겹치는 부분이 사각형</strong>을 이루어야 합니다.<br>✅ 약간 비뚤어지거나 크기가 달라도, 위 두 조건만 충족하면 정답입니다.</span>', text:'오각형 2개가 겹쳐져 있고, 겹치는 부분이 사각형인 그림을 그렸습니까?', hint:'손 떨림으로 선이 비뚤어진 것은 괜찮습니다. 5각+5각+겹침=4각이면 정답.' },
+    ]
+  },
+  { id:'sleep', title:'수면의 질 평가', domain:'P',
+    subtitle:'2문항 | PSQI 참고 개발',
+    questions:[
+      { text:'지난 1개월 동안 본인의 전반적인 수면의 질을 어떻게 평가하시겠습니까?', opts:['매우 좋음 (0점)','대체로 좋음 (1점)','대체로 나쁨 (2점)','매우 나쁨 (3점)'], scores:[0,1,2,3] },
+      { text:'지난 1개월 동안 하루 밤에 실제로 주무신 시간은 평균 몇 시간입니까?', opts:['7시간 이상 (0점)','6-7시간 (1점)','5-6시간 (2점)','5시간 미만 (3점)'], scores:[0,1,2,3] },
+    ]
+  },
+
+  // ── S Domain ──
+  { id:'lsns', title:'LSNS-6 축약형 (사회적 지원망)', domain:'S',
+    subtitle:'3문항 (가족 영역) | 점수가 낮을수록 사회적 고립 위험',
+    questions:[
+      { text:'적어도 한 달에 한 번 이상 만나거나 연락하는 가족/친척이 몇 명입니까?', opts:['없음 (0점)','1명 (1점)','2명 (2점)','3-4명 (3점)','5-8명 (4점)','9명 이상 (5점)'], scores:[0,1,2,3,4,5] },
+      { text:'사적인 이야기를 편하게 나눌 수 있는 가족/친척이 몇 명입니까?', opts:['없음 (0점)','1명 (1점)','2명 (2점)','3-4명 (3점)','5-8명 (4점)','9명 이상 (5점)'], scores:[0,1,2,3,4,5] },
+      { text:'도움이 필요할 때 연락할 수 있는 가족/친척이 몇 명입니까?', opts:['없음 (0점)','1명 (1점)','2명 (2점)','3-4명 (3점)','5-8명 (4점)','9명 이상 (5점)'], scores:[0,1,2,3,4,5] },
+    ]
+  },
+  { id:'econ', title:'경제적 상태 평가', domain:'S',
+    subtitle:'2문항 | HRS Financial Strain, Pearlin Scale 참고',
+    questions:[
+      { text:'지난 1년간 의료비 지출이 경제적으로 얼마나 부담이 되었습니까?', opts:['전혀 부담 안됨 (0점)','약간 부담 (1점)','상당히 부담 (2점)','매우 부담 (3점)'], scores:[0,1,2,3] },
+      { text:'월말에 생활비가 어떻습니까?', opts:['여유 있음 (0점)','겨우 맞춤 (1점)','부족함 (2점)'], scores:[0,1,2] },
+    ]
+  },
+  { id:'activity', title:'활동 참여 평가', domain:'S',
+    subtitle:'3문항 | ACPQ, WHO-SAGE 참고',
+    questions:[
+      { text:'지역사회 모임이나 행사(경로당, 복지관 프로그램 등)에 얼마나 자주 참여하십니까?', opts:['전혀 안함 (0점)','월 1-2회 (1점)','주 1-2회 (2점)','주 3회 이상 (3점)'], scores:[0,1,2,3] },
+      { text:'취미활동이나 동호회(운동, 노래, 바둑 등)에 참여하고 계십니까?', opts:['전혀 안함 (0점)','가끔 (1점)','정기적으로 (2점)'], scores:[0,1,2] },
+      { text:'자원봉사나 타인을 돕는 활동에 참여하십니까?', opts:['전혀 안함 (0점)','가끔 (1점)','정기적으로 (2점)'], scores:[0,1,2] },
+    ]
+  },
+
+  // ── F Domain ──
+  { id:'mbi', title:'Modified Barthel Index (수정 바델지수)', domain:'F',
+    subtitle:'10문항 | ADL 평가 | 총 100점 만점',
+    questions:[
+      { text:'개인위생', opts:['독립 (5점)','도움필요 (0점)'], scores:[5,0] },
+      { text:'목욕하기', opts:['독립 (5점)','도움필요 (0점)'], scores:[5,0] },
+      { text:'식사하기', opts:['독립 (10점)','약간의 도움 (5점)','완전의존 (0점)'], scores:[10,5,0] },
+      { text:'용변처리', opts:['독립 (10점)','약간의 도움 (5점)','완전의존 (0점)'], scores:[10,5,0] },
+      { text:'계단오르기', opts:['독립 (10점)','약간의 도움 (5점)','불가능 (0점)'], scores:[10,5,0] },
+      { text:'옷입기', opts:['독립 (10점)','약간의 도움 (5점)','완전의존 (0점)'], scores:[10,5,0] },
+      { text:'대변조절', opts:['완전조절 (10점)','가끔실수 (5점)','조절불가 (0점)'], scores:[10,5,0] },
+      { text:'소변조절', opts:['완전조절 (10점)','가끔실수 (5점)','조절불가 (0점)'], scores:[10,5,0] },
+      { text:'보행 또는 휠체어', opts:['50m 독립보행 (15점)','50m 최소도움 (10점)','휠체어독립 (5점)','불가능 (0점)'], scores:[15,10,5,0] },
+      { text:'의자/침대 이동', opts:['독립 (15점)','최소도움 (10점)','앉기가능 (5점)','불가능 (0점)'], scores:[15,10,5,0] },
+    ]
+  },
+  { id:'iadl', title:'Lawton & Brody IADL (도구적 일상생활활동)', domain:'F',
+    subtitle:'8문항 | 점수가 높을수록 독립적',
+    questions:[
+      { text:'전화사용: 혼자서 전화번호 찾아 전화 걸기', opts:['독립 (1점)','의존 (0점)'], scores:[1,0] },
+      { text:'물건사기: 혼자서 필요한 물건을 사러 가기', opts:['독립 (1점)','의존 (0점)'], scores:[1,0] },
+      { text:'음식준비: 혼자서 음식 준비하고 차려내기', opts:['독립 (1점)','의존 (0점)'], scores:[1,0] },
+      { text:'집안일: 혼자서 청소, 설거지 등 집안일 하기', opts:['독립 (1점)','의존 (0점)'], scores:[1,0] },
+      { text:'빨래하기: 혼자서 세탁하기', opts:['독립 (1점)','의존 (0점)'], scores:[1,0] },
+      { text:'교통수단 이용: 대중교통이나 자가용으로 외출하기', opts:['독립 (1점)','의존 (0점)'], scores:[1,0] },
+      { text:'약 복용: 정해진 시간에 정확한 용량의 약 복용', opts:['독립 (1점)','의존 (0점)'], scores:[1,0] },
+      { text:'돈 관리: 혼자서 돈을 관리하고 지불하기', opts:['독립 (1점)','의존 (0점)'], scores:[1,0] },
+    ]
+  },
+
+  // ── Gate ──
+  { id:'gate', title:'만성통증 스크리닝', domain:null, isGate:true },
+
+  // ── CS Domain (conditional) ──
+  { id:'csi', title:'CSI (중추감작척도)', domain:'CS', conditional:true,
+    subtitle:'25문항 | 0-100점 | ≥40점: 중추감작 의심\n각 문항: 전혀 아니다(0) ~ 항상 그렇다(4)',
+    questions: [
+      '잠을 자도 개운하지 않다',
+      '근육이 뻣뻣하고 쑤신다',
+      '불안 발작이 있다',
+      '이를 갈거나 악문다',
+      '설사/변비가 있다',
+      '소변을 자주 본다',
+      '빛에 민감하다',
+      '쉽게 피곤해진다',
+      '통증이 온 몸에 퍼져 있다',
+      '두통이 있다',
+      '방광이 불편하다',
+      '잠을 잘 못 잔다',
+      '집중이 어렵다',
+      '피부 문제(건조, 가려움 등)가 있다',
+      '스트레스가 신체 증상을 악화시킨다',
+      '슬프거나 우울하다',
+      '에너지가 낮다',
+      '목과 어깨가 긴장된다',
+      '턱이 아프다',
+      '특정 냄새(향수, 화학물질 등)가 어지럽다',
+      '잦은 감기에 걸린다',
+      '소리에 민감하다',
+      '입이 마르거나 눈이 건조하다',
+      '심장이 두근거린다',
+      '손발이 저리다',
+    ].map(t => ({ text: t, opts:['전혀 아니다 (0)','드물게 (1)','가끔 (2)','자주 (3)','항상 그렇다 (4)'], scores:[0,1,2,3,4] }))
+  },
+  { id:'pcs', title:'PCS (통증파국화척도)', domain:'CS', conditional:true,
+    subtitle:'13문항 | 하위척도: 반추, 확대, 무력감\n각 문항: 전혀 아니다(0) ~ 항상 그렇다(4)',
+    questions: [
+      '통증이 사라질지 계속 걱정한다',
+      '더 이상 견딜 수 없다고 느낀다',
+      '통증이 나아지지 않을 것 같아 두렵다',
+      '통증이 끔찍하고 절대 나아지지 않을 것 같다',
+      '더 이상 참을 수 없다고 느낀다',
+      '통증이 더 심해질까 봐 두렵다',
+      '다른 아픈 경험을 계속 생각한다',
+      '통증이 빨리 사라지기를 간절히 원한다',
+      '통증에 대한 생각을 멈출 수 없다',
+      '통증이 얼마나 아픈지 계속 생각한다',
+      '통증이 멈추기를 간절히 원한다',
+      '통증을 줄이기 위해 내가 할 수 있는 것이 없다',
+      '무언가 심각한 일이 일어날 것 같다',
+    ].map(t => ({ text: t, opts:['전혀 아니다 (0)','드물게 (1)','가끔 (2)','자주 (3)','항상 그렇다 (4)'], scores:[0,1,2,3,4] }))
+  },
+  { id:'tsk', title:'TSK (운동공포증척도)', domain:'CS', conditional:true,
+    subtitle:'11문항 단축형 | 각 문항: 매우 동의하지 않음(1) ~ 매우 동의(4)',
+    questions: [
+      '통증이 있으면 뭔가 심각한 손상이 생긴 것이 아닌지 두렵다',
+      '통증이 이렇게 심한데 운동하면 안전하지 않을 것이다',
+      '통증 때문에 몸이 뭔가 위험한 상태라고 생각한다',
+      '아마 운동을 하면 통증이 더 심해질 것이다',
+      '사람들이 내 건강 상태를 충분히 심각하게 받아들이지 않는다',
+      '사고 때문에 내 몸은 평생 위험한 상태라고 생각한다',
+      '통증은 항상 장애를 의미한다',
+      '통증이 심해지면 운동을 멈춰야 한다',
+      '몸이 아프면 뭔가 잘못된 것이라는 신호다',
+      '무리하지 않는 것이 가장 안전하다',
+      '통증이 심해지지 않게 불필요한 움직임을 피한다',
+    ].map(t => ({ text: t, opts:['매우 동의하지 않음 (1)','동의하지 않음 (2)','동의 (3)','매우 동의 (4)'], scores:[1,2,3,4] }))
+  },
+
+  // ── Quantitative (optional) ──
+  { id:'quant', title:'정량변수 입력 (선택)', domain:null, isQuant:true },
+
+  // ── Results ──
+  { id:'results', title:'결과', domain:null, isResults:true },
+];
+
+// CCI diseases
+const cciDiseases = [
+  { name:'심근경색', w:1 }, { name:'울혈성심부전', w:1 }, { name:'말초혈관질환', w:1 },
+  { name:'뇌혈관질환', w:1 }, { name:'치매', w:1 }, { name:'만성폐질환', w:1 },
+  { name:'결합조직질환', w:1 }, { name:'소화성궤양', w:1 }, { name:'경증간질환', w:1 },
+  { name:'당뇨병(합병증 없음)', w:1 },
+  { name:'편마비', w:2 }, { name:'중등도-중증 신장질환', w:2 },
+  { name:'당뇨병(합병증 동반)', w:2 }, { name:'악성종양', w:2 },
+  { name:'백혈병', w:2 }, { name:'림프종', w:2 },
+  { name:'중등도-중증 간질환', w:3 },
+  { name:'전이성 고형암', w:6 }, { name:'AIDS', w:6 },
+];
+
+// ══════════════════════════════════════
+// RENDERING
+// ══════════════════════════════════════
+function getVisibleSections() {
+  return sections.filter(s => {
+    if (s.conditional && state.gateAnswer !== 'yes') return false;
+    return true;
+  });
+}
+
+function render() {
+  const visible = getVisibleSections();
+  const sec = visible[state.step];
+  if (!sec) return;
+
+  // Progress
+  const pct = Math.round((state.step / (visible.length - 1)) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = `${state.step + 1} / ${visible.length}`;
+
+  // Step dots
+  const nav = document.getElementById('stepsNav');
+  nav.innerHTML = visible.map((s, i) => {
+    const cls = i === state.step ? 'active' : (i < state.step ? 'done' : '');
+    const label = s.domain || (s.isResults ? '★' : (s.isGate ? '?' : (s.isQuant ? 'Q' : 'i')));
+    return `<div class="step-dot ${cls}" onclick="goStep(${i})" title="${s.title}">${label}</div>`;
+  }).join('');
+
+  // Content
+  const app = document.getElementById('app');
+  if (sec.id === 'personal') app.innerHTML = renderPersonal();
+  else if (sec.isCCI) app.innerHTML = renderCCI();
+  else if (sec.isMeds) app.innerHTML = renderMeds();
+  else if (sec.isKMMSE) app.innerHTML = renderKMMSE();
+  else if (sec.isGate) app.innerHTML = renderGate();
+  else if (sec.isQuant) app.innerHTML = renderQuant();
+  else if (sec.isResults) { app.innerHTML = renderResults(); drawRadar(); }
+  else app.innerHTML = renderQuestions(sec);
+
+  window._scrollToTop && window.scrollTo({ top: 0, behavior: 'smooth' });
+  window._scrollToTop = false;
+}
+
+function domainBadge(d) {
+  if (!d) return '';
+  const labels = { B:'생물학적 Biological', P:'심리적 Psychological', S:'사회적 Social', F:'기능적 Functional', CS:'중추감작 Central Sensitization' };
+  return `<span class="domain-badge domain-${d}">${d} | ${labels[d]||d}</span>`;
+}
+
+function renderPersonal() {
+  const p = state.personal;
+  return `<div class="card">
+    <div class="card-title">기본 정보 입력</div>
+    <div class="card-subtitle">평가 대상자의 기본 정보를 입력해 주세요. (필수)</div>
+    <div class="form-group"><label>이름 *</label><input type="text" id="pName" value="${p.name}" placeholder="홍길동"></div>
+    <div class="form-group"><label>성별 *</label>
+      <select id="pGender"><option value="">선택</option><option ${p.gender==='남'?'selected':''}>남</option><option ${p.gender==='여'?'selected':''}>여</option></select></div>
+    <div class="form-group"><label>연령 *</label><input type="number" id="pAge" value="${p.age}" placeholder="만 나이" min="0" max="120"></div>
+    <div class="form-group"><label>키 (cm) *</label><input type="number" id="pHeight" value="${p.height}" placeholder="165" step="0.1"></div>
+    <div class="form-group"><label>몸무게 (kg) *</label><input type="number" id="pWeight" value="${p.weight}" placeholder="65" step="0.1"></div>
+    <div class="btn-row"><div></div><button class="btn btn-primary" onclick="savePersonal()">다음 →</button></div>
+  </div>`;
+}
+
+function savePersonal() {
+  const name = document.getElementById('pName').value.trim();
+  const gender = document.getElementById('pGender').value;
+  const age = document.getElementById('pAge').value;
+  const height = document.getElementById('pHeight').value;
+  const weight = document.getElementById('pWeight').value;
+  if (!name || !gender || !age || !height || !weight) { showToast('모든 필수 항목을 입력해 주세요.'); return; }
+  state.personal = { name, gender, age, height, weight };
+
+  // BMI 자동 계산 → MNA-SF 6번 문항(mna-5) 자동 채점
+  const bmi = parseFloat(weight) / Math.pow(parseFloat(height) / 100, 2);
+  if (bmi < 19) state.answers['mna-5'] = 0;       // 19 미만 (0점)
+  else if (bmi < 21) state.answers['mna-5'] = 1;   // 19-21 (1점)
+  else if (bmi < 23) state.answers['mna-5'] = 2;   // 21-23 (2점)
+  else state.answers['mna-5'] = 3;                  // 23 이상 (3점)
+
+  nextStep();
+}
+
+function renderQuestions(sec) {
+  let html = `<div class="card">${domainBadge(sec.domain)}
+    <div class="card-title">${sec.title}</div>
+    <div class="card-subtitle">${sec.subtitle}</div>`;
+  sec.questions.forEach((q, qi) => {
+    const key = sec.id + '-' + qi;
+    const answered = state.answers[key] !== undefined;
+    // Auto BMI display
+    let bmiNote = '';
+    if (q.autoBMI && state.personal.height && state.personal.weight) {
+      const bmiVal = (parseFloat(state.personal.weight) / Math.pow(parseFloat(state.personal.height)/100, 2)).toFixed(1);
+      bmiNote = `<div style="font-size:0.82rem;color:var(--primary-light);font-weight:600;margin-bottom:8px;">📐 계산된 BMI: ${bmiVal} kg/m² (자동 선택됨)</div>`;
+    }
+    html += `<div class="q-item ${answered?'answered':''}">
+      <div class="q-num">${qi+1}/${sec.questions.length}</div>
+      <div class="q-text">${q.text}</div>${bmiNote}
+      <div class="q-options">`;
+    q.opts.forEach((opt, oi) => {
+      const sel = state.answers[key] === oi ? 'selected' : '';
+      html += `<div class="q-opt ${sel}" onclick="answer('${key}',${oi})">${opt}</div>`;
+    });
+    html += `</div></div>`;
+  });
+  html += `<div class="btn-row">
+    <button class="btn btn-secondary" onclick="prevStep()">← 이전</button>
+    <button class="btn btn-primary" onclick="validateAndNext('${sec.id}')">다음 →</button>
+  </div></div>`;
+  return html;
+}
+
+function answer(key, optIdx) {
+  state.answers[key] = optIdx;
+  const scrollY = window.scrollY;
+  render();
+  window.scrollTo(0, scrollY);
+}
+
+function validateAndNext(secId) {
+  const sec = sections.find(s => s.id === secId);
+  if (sec && sec.questions) {
+    for (let i = 0; i < sec.questions.length; i++) {
+      if (state.answers[secId + '-' + i] === undefined) {
+        showToast(`${i+1}번 문항에 응답해 주세요.`);
+        return;
+      }
+    }
+  }
+  nextStep();
+}
+
+function renderCCI() {
+  let html = `<div class="card">${domainBadge('B')}
+    <div class="card-title">CCI (찰슨동반질환지수)</div>
+    <div class="card-subtitle">해당하는 질환을 모두 선택하세요. 가중치가 자동 합산됩니다.</div>
+    <div class="cci-grid">`;
+  cciDiseases.forEach(d => {
+    const checked = state.cciChecked[d.name] ? 'checked' : '';
+    html += `<div class="cci-item ${checked}" onclick="toggleCCI('${d.name}',${d.w})">
+      <input type="checkbox" ${checked}> ${d.name} <span class="cci-weight">${d.w}점</span></div>`;
+  });
+  const total = Object.values(state.cciChecked).reduce((a,b)=>a+b, 0);
+  html += `</div><div style="margin-top:16px;font-weight:600;font-size:1.05rem;text-align:right;">CCI 총점: <span style="color:var(--primary)">${total}점</span></div>`;
+  html += `<div class="btn-row">
+    <button class="btn btn-secondary" onclick="prevStep()">← 이전</button>
+    <button class="btn btn-primary" onclick="nextStep()">다음 →</button>
+  </div></div>`;
+  return html;
+}
+
+function toggleCCI(name, weight) {
+  if (state.cciChecked[name]) delete state.cciChecked[name];
+  else state.cciChecked[name] = weight;
+  const scrollY = window.scrollY;
+  render();
+  window.scrollTo(0, scrollY);
+}
+
+function renderMeds() {
+  const val = state.answers['meds'] || '';
+  return `<div class="card">${domainBadge('B')}
+    <div class="card-title">복용 약물 수</div>
+    <div class="card-subtitle">현재 복용 중인 약물(처방약+일반약) 총 개수를 입력하세요.</div>
+    <div class="form-group"><label>복용 약물 수</label>
+      <input type="number" id="medsCount" value="${val}" min="0" max="30" placeholder="예: 5"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="prevStep()">← 이전</button>
+      <button class="btn btn-primary" onclick="saveMeds()">다음 →</button>
+    </div></div>`;
+}
+function saveMeds() {
+  const v = document.getElementById('medsCount').value;
+  if (v === '') { showToast('약물 수를 입력해 주세요.'); return; }
+  state.answers['meds'] = parseInt(v);
+  nextStep();
+}
+
+function renderKMMSE() {
+  const sec = sections.find(s => s.id === 'kmmse');
+  const items = sec.kmmseItems;
+  let currentGroup = '';
+  let html = `<div class="card">${domainBadge('P')}
+    <div class="card-title">${sec.title}</div>
+    <div class="card-subtitle">총 30문항 | 화면의 지시문을 따라 스스로 또는 보조자와 함께 수행하세요.<br>
+    <strong>준비물:</strong> 종이 2장, 연필(또는 펜), 시계(실물)<br>
+    각 문항: 정확히 수행하면 <strong>정답(1점)</strong>, 그렇지 않으면 <strong>오답(0점)</strong></div>`;
+
+  items.forEach((item, idx) => {
+    const key = 'kmmse-' + idx;
+    const answered = state.answers[key] !== undefined;
+    // Group header with instruction
+    if (item.group !== currentGroup) {
+      currentGroup = item.group;
+      html += `<div style="margin-top:24px;margin-bottom:10px;padding:14px 16px;background:var(--primary-pale);border-radius:10px;border-left:4px solid var(--primary);">
+        <div style="font-weight:700;font-size:0.95rem;color:var(--primary);margin-bottom:6px;">${currentGroup}</div>
+        ${item.instruction ? `<div style="font-size:0.85rem;color:var(--text);line-height:1.7;">${item.instruction}</div>` : ''}
+      </div>`;
+    }
+
+    html += `<div class="q-item ${answered?'answered':''}">
+      <div class="q-num">${idx+1}/30</div>
+      <div class="q-text">${item.text}</div>
+      ${item.hint ? `<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:8px;font-style:italic;">💡 ${item.hint}</div>` : ''}
+      <div class="q-options">
+        <div class="q-opt ${state.answers[key]===1?'selected':''}" onclick="answer('${key}',1)" style="min-width:100px;">✅ 정답 (1점)</div>
+        <div class="q-opt ${state.answers[key]===0?'selected':''}" onclick="answer('${key}',0)" style="min-width:100px;">❌ 오답 (0점)</div>
+      </div>
+    </div>`;
+  });
+
+  // Running total
+  let total = 0;
+  let answered = 0;
+  items.forEach((_, idx) => {
+    const v = state.answers['kmmse-' + idx];
+    if (v !== undefined) { total += v; answered++; }
+  });
+
+  html += `<div style="margin-top:16px;padding:14px;background:#f0f7ff;border-radius:8px;text-align:center;">
+    <span style="font-size:0.85rem;color:var(--text-light);">현재 점수:</span>
+    <span style="font-size:1.3rem;font-weight:700;color:var(--primary);margin-left:8px;">${total}/30</span>
+    <span style="font-size:0.8rem;color:var(--text-light);margin-left:8px;">(${answered}/30 응답 완료)</span>
+  </div>`;
+
+  html += `<div class="btn-row">
+    <button class="btn btn-secondary" onclick="prevStep()">← 이전</button>
+    <button class="btn btn-primary" onclick="saveKMMSE()">다음 →</button>
+  </div></div>`;
+  return html;
+}
+
+function saveKMMSE() {
+  const sec = sections.find(s => s.id === 'kmmse');
+  // Check all 30 items answered
+  for (let i = 0; i < sec.kmmseItems.length; i++) {
+    if (state.answers['kmmse-' + i] === undefined) {
+      showToast(`${i+1}번 문항에 응답해 주세요.`);
+      return;
+    }
+  }
+  // Calculate total and store as 'kmmse' for scoring compatibility
+  let total = 0;
+  sec.kmmseItems.forEach((_, i) => { total += state.answers['kmmse-' + i]; });
+  state.answers['kmmse'] = total;
+  nextStep();
+}
+
+function renderGate() {
+  const yesC = state.gateAnswer === 'yes' ? 'selected' : '';
+  const noC = state.gateAnswer === 'no' ? 'selected' : '';
+  return `<div class="card">
+    <div class="card-title">만성통증 스크리닝 (게이트 문항)</div>
+    <div class="card-subtitle">아래 문항에 따라 중추감작 모듈 평가 여부가 결정됩니다.</div>
+    <div class="gate-box">
+      <div class="gate-q">"3개월 이상 일상생활에 지장을 줄 정도의 통증이 있습니까?"</div>
+      <div class="gate-btns">
+        <div class="gate-btn yes ${yesC}" onclick="setGate('yes')">예</div>
+        <div class="gate-btn no ${noC}" onclick="setGate('no')">아니오</div>
+      </div>
+    </div>
+    ${state.gateAnswer === 'yes' ? '<p style="margin-top:16px;color:var(--danger);font-weight:500;text-align:center;">→ CSI, PCS, TSK 중추감작 모듈이 추가됩니다.</p>' : ''}
+    ${state.gateAnswer === 'no' ? '<p style="margin-top:16px;color:var(--success);font-weight:500;text-align:center;">→ 중추감작 모듈을 건너뜁니다.</p>' : ''}
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="prevStep()">← 이전</button>
+      <button class="btn btn-primary" onclick="gateNext()" ${!state.gateAnswer?'disabled':''}>다음 →</button>
+    </div></div>`;
+}
+function setGate(v) { state.gateAnswer = v; const scrollY = window.scrollY; render(); window.scrollTo(0, scrollY); }
+function gateNext() { if (!state.gateAnswer) return; nextStep(); }
+
+function renderQuant() {
+  const q = state.quant;
+  const field = (id, label, unit, placeholder) =>
+    `<div class="quant-field form-group"><label>${label} ${unit?'('+unit+')':''}</label>
+     <input type="number" step="0.01" id="q_${id}" value="${q[id]||''}" placeholder="${placeholder||''}"></div>`;
+
+  return `<div class="card">
+    <div class="card-title">정량변수 입력 (선택)</div>
+    <div class="card-subtitle">장비 측정 데이터가 있는 경우 입력하세요. 미입력 시 설문 결과만으로 분석됩니다.</div>
+
+    <div class="quant-section">
+      <div class="section-label">B (생물학적) — 체성분/근력 <span class="optional-tag">선택</span></div>
+      <div class="quant-grid">
+        ${field('smi','SMI','kg/m²','6.8')}
+        ${field('grip_r','악력 (우)','kg','28')}
+        ${field('grip_l','악력 (좌)','kg','26')}
+        ${field('bmi_inbody','BMI (InBody)','kg/m²','23.5')}
+        ${field('fat_pct','체지방률','%','25')}
+        ${field('phase_angle','위상각','°','5.2')}
+      </div>
+    </div>
+
+    <div class="quant-section">
+      <div class="section-label">B (생물학적) — 혈액/심폐 <span class="optional-tag">선택</span></div>
+      <div class="quant-grid">
+        ${field('albumin','알부민','g/dL','4.0')}
+        ${field('hb','헤모글로빈','g/dL','13')}
+        ${field('vitd','비타민D','ng/mL','30')}
+        ${field('crp','CRP','mg/L','1.0')}
+        ${field('fvc','FVC','L','3.5')}
+        ${field('fev1','FEV1','L','2.8')}
+        ${field('vo2max','추정 VO₂max','mL/kg/min','25')}
+      </div>
+    </div>
+
+    <div class="quant-section">
+      <div class="section-label">N (신경생리학적) — NIRSIT lite <span class="optional-tag">선택</span></div>
+      <div class="quant-grid">
+        ${field('pfc_r_rest','PFC 우 (Rest)','ΔHbO₂','')}
+        ${field('pfc_l_rest','PFC 좌 (Rest)','ΔHbO₂','')}
+        ${field('dlpfc_r_rest','DLPFC 우 (Rest)','ΔHbO₂','')}
+        ${field('dlpfc_l_rest','DLPFC 좌 (Rest)','ΔHbO₂','')}
+        ${field('ofc_r_rest','OFC 우 (Rest)','ΔHbO₂','')}
+        ${field('ofc_l_rest','OFC 좌 (Rest)','ΔHbO₂','')}
+        ${field('pfc_r_dt','PFC 우 (Dual-task)','ΔHbO₂','')}
+        ${field('pfc_l_dt','PFC 좌 (Dual-task)','ΔHbO₂','')}
+        ${field('dlpfc_r_dt','DLPFC 우 (Dual-task)','ΔHbO₂','')}
+        ${field('dlpfc_l_dt','DLPFC 좌 (Dual-task)','ΔHbO₂','')}
+        ${field('ofc_r_dt','OFC 우 (Dual-task)','ΔHbO₂','')}
+        ${field('ofc_l_dt','OFC 좌 (Dual-task)','ΔHbO₂','')}
+      </div>
+    </div>
+
+    <div class="quant-section">
+      <div class="section-label">F (기능적) — 보행/자세/균형 <span class="optional-tag">선택</span></div>
+      <div class="quant-grid">
+        ${field('gait_speed','보행속도','m/s','1.0')}
+        ${field('stride','보폭','cm','55')}
+        ${field('symmetry','좌우 대칭지수','','')}
+        ${field('walk6m','6분 보행거리','m','400')}
+        ${field('tug','TUG','sec','10')}
+        ${field('posture_grade','Motiphysio 자세등급','','')}
+        ${field('shoulder_diff','어깨 높이 차','°','')}
+        ${field('pelvis_tilt','골반 기울기','°','')}
+        ${field('ols_score','한발서기 10초 점수','','')}
+        ${field('ols_time','한발서기 최대시간','sec','')}
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="prevStep()">← 이전</button>
+      <button class="btn btn-accent" onclick="saveQuantAndFinish()">결과 보기 →</button>
+    </div></div>`;
+}
+
+function saveQuantAndFinish() {
+  // collect all quant fields
+  document.querySelectorAll('[id^="q_"]').forEach(el => {
+    const key = el.id.replace('q_','');
+    if (el.value !== '') state.quant[key] = parseFloat(el.value);
+  });
+  nextStep();
+}
+
+// ══════════════════════════════════════
+// SCORING
+// ══════════════════════════════════════
+function getSectionScore(secId) {
+  const sec = sections.find(s => s.id === secId);
+  if (!sec || !sec.questions) return 0;
+  let total = 0;
+  sec.questions.forEach((q, i) => {
+    const key = secId + '-' + i;
+    const optIdx = state.answers[key];
+    if (optIdx !== undefined) total += q.scores[optIdx];
+  });
+  return total;
+}
+
+function getSectionMax(secId) {
+  const sec = sections.find(s => s.id === secId);
+  if (!sec || !sec.questions) return 1;
+  return sec.questions.reduce((a, q) => a + Math.max(...q.scores), 0);
+}
+
+// FI (Frailty Index) = total deficits / total possible deficits (0~1)
+function calcFI() {
+  let deficits = 0;
+  let total = 0;
+
+  // K-FRAIL: each item 0 or 1 deficit
+  for (let i = 0; i < 5; i++) {
+    const v = state.answers['kfrail-'+i];
+    if (v !== undefined) { deficits += sections.find(s=>s.id==='kfrail').questions[i].scores[v]; total++; }
+  }
+  // MNA-SF: reverse (higher=better → deficit = 1 - score/max_per_item)
+  const mnaSec = sections.find(s=>s.id==='mna');
+  mnaSec.questions.forEach((q,i) => {
+    const v = state.answers['mna-'+i];
+    if (v !== undefined) { const maxQ = Math.max(...q.scores); deficits += 1 - q.scores[v]/maxQ; total++; }
+  });
+  // CCI: cap at 6 for deficit ratio
+  const cciVal = Object.values(state.cciChecked).reduce((a,b)=>a+b,0);
+  deficits += Math.min(cciVal/6, 1); total++;
+  // Meds: >=5 = 1 deficit, else proportional
+  const meds = state.answers['meds'] || 0;
+  deficits += Math.min(meds/5, 1); total++;
+  // GDS-SF: each item 0 or 1
+  for (let i = 0; i < 15; i++) {
+    const v = state.answers['gds-'+i];
+    if (v !== undefined) { deficits += sections.find(s=>s.id==='gds').questions[i].scores[v]; total++; }
+  }
+  // K-MMSE: deficit = 1 - score/30
+  const kmmse = state.answers['kmmse'];
+  if (kmmse !== undefined) { deficits += 1 - kmmse/30; total++; }
+  // Sleep: each item max 3
+  const sleepSec = sections.find(s=>s.id==='sleep');
+  sleepSec.questions.forEach((q,i) => {
+    const v = state.answers['sleep-'+i];
+    if (v !== undefined) { deficits += q.scores[v]/3; total++; }
+  });
+  // LSNS: reverse (higher=better)
+  const lsnsSec = sections.find(s=>s.id==='lsns');
+  lsnsSec.questions.forEach((q,i) => {
+    const v = state.answers['lsns-'+i];
+    if (v !== undefined) { deficits += 1 - q.scores[v]/5; total++; }
+  });
+  // Econ: higher=worse
+  const econSec = sections.find(s=>s.id==='econ');
+  econSec.questions.forEach((q,i) => {
+    const v = state.answers['econ-'+i];
+    if (v !== undefined) { const maxQ = Math.max(...q.scores); deficits += q.scores[v]/maxQ; total++; }
+  });
+  // Activity: reverse
+  const actSec = sections.find(s=>s.id==='activity');
+  actSec.questions.forEach((q,i) => {
+    const v = state.answers['activity-'+i];
+    if (v !== undefined) { const maxQ = Math.max(...q.scores); deficits += 1 - q.scores[v]/maxQ; total++; }
+  });
+  // MBI: reverse (100=independent)
+  const mbiSec = sections.find(s=>s.id==='mbi');
+  mbiSec.questions.forEach((q,i) => {
+    const v = state.answers['mbi-'+i];
+    if (v !== undefined) { const maxQ = Math.max(...q.scores); deficits += 1 - q.scores[v]/maxQ; total++; }
+  });
+  // IADL: reverse
+  for (let i = 0; i < 8; i++) {
+    const v = state.answers['iadl-'+i];
+    if (v !== undefined) { deficits += 1 - sections.find(s=>s.id==='iadl').questions[i].scores[v]; total++; }
+  }
+  return total > 0 ? (deficits / total) : 0;
+}
+
+// K-MMSE sub-domain scores
+function calcKMMSEsubs() {
+  const sum = (start, end) => {
+    let s = 0;
+    for (let i = start; i <= end; i++) { s += (state.answers['kmmse-'+i] || 0); }
+    return s;
+  };
+  return {
+    time_orient: sum(0,4),      // 시간 지남력 /5
+    place_orient: sum(5,9),     // 장소 지남력 /5
+    memory_reg: sum(10,12),     // 기억등록 /3
+    attention: sum(13,17),      // 주의집중 및 계산 /5
+    memory_recall: sum(18,20),  // 기억회상 /3
+    language: sum(21,29),       // 언어 및 시공간 /9
+  };
+}
+
+function calcDomainScores() {
+  // B: K-FRAIL(rev) + MNA-SF + CCI(rev) + Meds(rev)
+  const kfrail = getSectionScore('kfrail');    // 0-5, higher=worse
+  const mna = getSectionScore('mna');          // 0-14, higher=better
+  const cci = Object.values(state.cciChecked).reduce((a,b)=>a+b,0); // higher=worse
+  const meds = state.answers['meds'] || 0;
+
+  const kfrailNorm = (1 - kfrail/5) * 100;
+  const mnaNorm = (mna/14) * 100;
+  const cciNorm = Math.max(0, (1 - cci/12)) * 100;
+  const medsNorm = Math.max(0, (1 - meds/10)) * 100;
+  const B = (kfrailNorm + mnaNorm + cciNorm + medsNorm) / 4;
+
+  // P: GDS-SF(rev) + K-MMSE + Sleep(rev)
+  const gds = getSectionScore('gds');          // 0-15, higher=worse
+  const kmmse = state.answers['kmmse'] || 0;   // 0-30, higher=better
+  const sleep = getSectionScore('sleep');       // 0-6, higher=worse
+
+  const gdsNorm = (1 - gds/15) * 100;
+  const kmmseNorm = (kmmse/30) * 100;
+  const sleepNorm = (1 - sleep/6) * 100;
+  const P = (gdsNorm + kmmseNorm + sleepNorm) / 3;
+
+  // S: LSNS + Econ(rev) + Activity
+  const lsns = getSectionScore('lsns');        // 0-15, higher=better
+  const econ = getSectionScore('econ');         // 0-5, higher=worse
+  const activity = getSectionScore('activity'); // 0-7, higher=better
+
+  const lsnsNorm = (lsns/15) * 100;
+  const econNorm = (1 - econ/5) * 100;
+  const actNorm = (activity/7) * 100;
+  const S = (lsnsNorm + econNorm + actNorm) / 3;
+
+  // F: MBI + IADL
+  const mbi = getSectionScore('mbi');          // 0-100
+  const iadl = getSectionScore('iadl');        // 0-8
+
+  const mbiNorm = mbi; // already 0-100
+  const iadlNorm = (iadl/8) * 100;
+  const F = (mbiNorm + iadlNorm) / 2;
+
+  return { B: Math.round(B), P: Math.round(P), S: Math.round(S), F: Math.round(F),
+    raw: { kfrail, mna, cci, meds, gds, kmmse, sleep, lsns, econ, activity, mbi, iadl } };
+}
+
+function classifyFCS(scores) {
+  const threshold = 50;
+  const collapsed = [];
+  if (scores.B < threshold) collapsed.push('B');
+  if (scores.P < threshold) collapsed.push('P');
+  if (scores.S < threshold) collapsed.push('S');
+  if (scores.F < threshold) collapsed.push('F');
+
+  let type = '정상 범위';
+  let intervention = '현재 특별한 취약 영역이 발견되지 않았습니다. 정기적 모니터링을 권장합니다.';
+  let color = '#27ae60';
+
+  if (collapsed.length >= 2) {
+    type = '혼합형';
+    intervention = '복수 영역 동시 취약 → 다학제 케어 플랜 필요';
+    color = '#8e44ad';
+  } else if (collapsed.includes('B')) {
+    type = '신체취약형';
+    intervention = '근력·파워·균형 3단계 운동, 단백질/에너지 보충';
+    color = '#27ae60';
+  } else if (collapsed.includes('P')) {
+    const gds = getSectionScore('gds');
+    const kmmse = state.answers['kmmse'] || 30;
+    if (kmmse < 24 && gds < 5) {
+      type = '인지/집행취약형';
+      intervention = '이중과제 보행, 실행기능 훈련, 수면·약물 조정';
+      color = '#2980b9';
+    } else if (gds >= 5) {
+      type = '정서취약형';
+      intervention = '행동활성화, 사회적 리듬, 우울 스크리닝 후 연계';
+      color = '#2980b9';
+    } else {
+      type = '심리적 취약형';
+      intervention = 'K-MMSE/GDS-SF 세부 결과 확인 후 인지 또는 정서 중재 결정';
+      color = '#2980b9';
+    }
+  } else if (collapsed.includes('S')) {
+    type = '사회취약형';
+    intervention = '사회참여 프로그램, 방문·커뮤니티 연계, 디지털 소통 지원';
+    color = '#e67e22';
+  } else if (collapsed.includes('F')) {
+    type = '기능취약형 (신체취약형 연관)';
+    intervention = 'ADL/IADL 기능 재활, 보행 훈련, 낙상 예방';
+    color = '#c0392b';
+  }
+
+  // CS check
+  let csType = null;
+  if (state.gateAnswer === 'yes') {
+    const csi = getSectionScore('csi');
+    const pcs = getSectionScore('pcs');
+    const tsk = getSectionScore('tsk');
+    if (csi >= 40) {
+      csType = { type: '중추감작형 (동반)', csi, pcs, tsk,
+        intervention: '통증 교육·재평가, 점진적 노출·운동, 수면·정서 조절' };
+    }
+  }
+
+  return { type, intervention, color, collapsed, csType };
+}
+
+// ══════════════════════════════════════
+// RESULTS
+// ══════════════════════════════════════
+function renderResults() {
+  const scores = calcDomainScores();
+  const fcs = classifyFCS(scores);
+  const r = scores.raw;
+  const fi = calcFI();
+  const fiPct = (fi * 100).toFixed(1);
+
+  // K-FRAIL interpretation
+  const kfrailLabel = r.kfrail === 0 ? '정상' : (r.kfrail <= 2 ? '전노쇠' : '노쇠');
+  const kfrailColor = r.kfrail === 0 ? '#27ae60' : (r.kfrail <= 2 ? '#e67e22' : '#c0392b');
+  // FI interpretation
+  const fiLabel = fi < 0.10 ? '정상' : (fi < 0.21 ? '전노쇠' : '노쇠');
+  const fiColor = fi < 0.10 ? '#27ae60' : (fi < 0.21 ? '#e67e22' : '#c0392b');
+
+  let csHtml = '';
+  if (state.gateAnswer === 'yes') {
+    const csi = getSectionScore('csi');
+    const pcs = getSectionScore('pcs');
+    const tsk = getSectionScore('tsk');
+    csHtml = `<div class="type-result" style="background:#f5eef8;border-left:4px solid #6c3483;margin-top:16px;">
+      <h3 style="color:#6c3483;">중추감작 모듈 결과</h3>
+      <table class="score-table"><tr><th>척도</th><th>점수</th><th>해석</th></tr>
+      <tr><td>CSI</td><td>${csi}/100</td><td>${csi>=40?'⚠ 중추감작 의심':'정상 범위'}</td></tr>
+      <tr><td>PCS</td><td>${pcs}/52</td><td>${pcs>=30?'⚠ 높은 파국화':'정상-경도'}</td></tr>
+      <tr><td>TSK</td><td>${tsk}/44</td><td>${tsk>=30?'⚠ 높은 운동공포':'정상-경도'}</td></tr>
+      </table>
+      ${fcs.csType ? `<p style="margin-top:12px;font-weight:600;color:#6c3483;">→ ${fcs.csType.intervention}</p>` : ''}
+    </div>`;
+  }
+
+  // Quant summary
+  const qk = Object.keys(state.quant);
+  let quantHtml = '';
+  if (qk.length > 0) {
+    const quantLabels = {smi:'SMI',grip_r:'악력(우)',grip_l:'악력(좌)',bmi_inbody:'BMI',fat_pct:'체지방률',phase_angle:'위상각',albumin:'알부민',hb:'Hb',vitd:'Vit-D',crp:'CRP',fvc:'FVC',fev1:'FEV1',vo2max:'VO₂max',pfc_r_rest:'PFC우(R)',pfc_l_rest:'PFC좌(R)',dlpfc_r_rest:'DLPFC우(R)',dlpfc_l_rest:'DLPFC좌(R)',ofc_r_rest:'OFC우(R)',ofc_l_rest:'OFC좌(R)',pfc_r_dt:'PFC우(DT)',pfc_l_dt:'PFC좌(DT)',dlpfc_r_dt:'DLPFC우(DT)',dlpfc_l_dt:'DLPFC좌(DT)',ofc_r_dt:'OFC우(DT)',ofc_l_dt:'OFC좌(DT)',gait_speed:'보행속도',stride:'보폭',symmetry:'대칭지수',walk6m:'6분거리',tug:'TUG',posture_grade:'자세등급',shoulder_diff:'어깨차',pelvis_tilt:'골반기울기',ols_score:'OLS점수',ols_time:'OLS시간'};
+    const quantRows = qk.map(k => `<tr><td>${quantLabels[k]||k}</td><td>${state.quant[k]}</td></tr>`).join('');
+    quantHtml = `<div style="margin-top:20px;text-align:left;">
+      <h3 style="font-size:0.95rem;color:var(--success);margin-bottom:8px;">정량변수 (${qk.length}개 입력됨)</h3>
+      <table class="score-table"><tr><th>항목</th><th>측정값</th></tr>${quantRows}</table>
+    </div>`;
+  }
+
+  return `<div class="card result-card">
+    <h2>FCS 평가 결과</h2>
+    <p style="color:var(--text-light);margin-bottom:20px;">${state.personal.name} | ${state.personal.gender} | ${state.personal.age}세 | ${state.personal.height}cm / ${state.personal.weight}kg</p>
+
+    <!-- K-FRAIL & FI -->
+    <div style="display:flex;gap:12px;justify-content:center;margin-bottom:20px;flex-wrap:wrap;">
+      <div style="padding:14px 24px;border-radius:10px;border:2px solid ${kfrailColor};text-align:center;min-width:160px;">
+        <div style="font-size:0.78rem;color:var(--text-light);">K-FRAIL</div>
+        <div style="font-size:1.8rem;font-weight:700;color:${kfrailColor};">${r.kfrail}/5</div>
+        <div style="font-size:0.85rem;font-weight:600;color:${kfrailColor};">${kfrailLabel}</div>
+      </div>
+      <div style="padding:14px 24px;border-radius:10px;border:2px solid ${fiColor};text-align:center;min-width:160px;">
+        <div style="font-size:0.78rem;color:var(--text-light);">Frailty Index (FI)</div>
+        <div style="font-size:1.8rem;font-weight:700;color:${fiColor};">${fi.toFixed(3)}</div>
+        <div style="font-size:0.85rem;font-weight:600;color:${fiColor};">${fiLabel} (${fiPct}%)</div>
+      </div>
+    </div>
+
+    <div class="radar-wrap"><canvas id="radarChart"></canvas></div>
+
+    <!-- Domain summary -->
+    <h3 style="font-size:1rem;color:var(--primary);margin:24px 0 8px;text-align:left;">영역별 정규화 점수</h3>
+    <table class="score-table">
+      <tr><th>영역</th><th>점수</th><th>상태</th></tr>
+      <tr><td><strong>B (생물학적)</strong></td><td>${scores.B}/100</td><td>${scores.B<50?'⚠ 취약':'양호'}</td></tr>
+      <tr><td><strong>P (심리적)</strong></td><td>${scores.P}/100</td><td>${scores.P<50?'⚠ 취약':'양호'}</td></tr>
+      <tr><td><strong>S (사회적)</strong></td><td>${scores.S}/100</td><td>${scores.S<50?'⚠ 취약':'양호'}</td></tr>
+      <tr><td><strong>F (기능적)</strong></td><td>${scores.F}/100</td><td>${scores.F<50?'⚠ 취약':'양호'}</td></tr>
+    </table>
+
+    <!-- Individual tool scores -->
+    <h3 style="font-size:1rem;color:var(--primary);margin:24px 0 8px;text-align:left;">개별 평가도구 원점수</h3>
+    <table class="score-table">
+      <tr><th>영역</th><th>도구</th><th>점수</th><th>해석</th></tr>
+      <tr><td rowspan="4">B</td><td>K-FRAIL</td><td>${r.kfrail}/5</td><td>${r.kfrail===0?'정상':r.kfrail<=2?'전노쇠 (1-2)':'노쇠 (3-5)'}</td></tr>
+      <tr><td>MNA-SF</td><td>${r.mna}/14</td><td>${r.mna>=12?'정상':r.mna>=8?'영양불량 위험':'영양불량'}</td></tr>
+      <tr><td>CCI</td><td>${r.cci}점</td><td>${r.cci===0?'동반질환 없음':r.cci<=2?'경도':'중등도 이상'}</td></tr>
+      <tr><td>복용 약물</td><td>${r.meds}종</td><td>${r.meds<5?'정상':'다약제 (≥5)'}</td></tr>
+      <tr><td rowspan="3">P</td><td>GDS-SF</td><td>${r.gds}/15</td><td>${r.gds<=4?'정상':r.gds<=9?'경증우울':'중등도-중증우울'}</td></tr>
+      <tr><td>K-MMSE</td><td>${r.kmmse}/30</td><td>${r.kmmse>=24?'정상':r.kmmse>=20?'경도인지장애 의심':'중등도 이하'}</td></tr>
+      <tr><td colspan="3" style="padding-left:28px;font-size:0.8rem;color:var(--text-light);background:#f8f9fb;">
+        └ 시간지남력 ${calcKMMSEsubs().time_orient}/5 | 장소지남력 ${calcKMMSEsubs().place_orient}/5 | 기억등록 ${calcKMMSEsubs().memory_reg}/3 | 주의집중 ${calcKMMSEsubs().attention}/5 | 기억회상 ${calcKMMSEsubs().memory_recall}/3 | 언어/시공간 ${calcKMMSEsubs().language}/9
+      </td></tr>
+      <tr><td>수면의 질</td><td>${r.sleep}/6</td><td>${r.sleep<=2?'양호':'수면 문제'}</td></tr>
+      <tr><td rowspan="3">S</td><td>LSNS-6</td><td>${r.lsns}/15</td><td>${r.lsns>=6?'양호':'사회적 고립 위험'}</td></tr>
+      <tr><td>경제적 상태</td><td>${r.econ}/5</td><td>${r.econ<=1?'양호':'경제적 부담'}</td></tr>
+      <tr><td>활동 참여</td><td>${r.activity}/7</td><td>${r.activity>=4?'활발':'참여 부족'}</td></tr>
+      <tr><td rowspan="2">F</td><td>MBI (ADL)</td><td>${r.mbi}/100</td><td>${r.mbi>=91?'자립':r.mbi>=75?'경도의존':'중등도 이상 의존'}</td></tr>
+      <tr><td>Lawton IADL</td><td>${r.iadl}/8</td><td>${r.iadl>=7?'독립적':'기능 저하'}</td></tr>
+    </table>
+
+    <div class="type-result" style="background:${fcs.color}15;border-left:4px solid ${fcs.color};margin-top:24px;">
+      <h3 style="color:${fcs.color};">FCS 유형: ${fcs.type}${fcs.csType ? ' + 중추감작형' : ''}</h3>
+      <p>${fcs.intervention}</p>
+    </div>
+
+    ${csHtml}
+    ${quantHtml}
+
+    <div class="btn-row" style="margin-top:32px;">
+      <button class="btn btn-secondary" onclick="prevStep()">← 이전</button>
+      <button class="btn btn-accent" onclick="submitToSheets()">📊 Google Sheets 저장</button>
+      <button class="btn btn-primary" onclick="resetAll()">새 평가 시작</button>
+    </div>
+  </div>`;
+}
+
+function drawRadar() {
+  const scores = calcDomainScores();
+  const ctx = document.getElementById('radarChart');
+  if (!ctx) return;
+  new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: ['B (생물학적)', 'P (심리적)', 'S (사회적)', 'F (기능적)'],
+      datasets: [{
+        label: 'FCS 프로파일',
+        data: [scores.B, scores.P, scores.S, scores.F],
+        backgroundColor: 'rgba(41,128,185,0.15)',
+        borderColor: '#2980b9',
+        borderWidth: 2.5,
+        pointBackgroundColor: '#2980b9',
+        pointRadius: 5,
+      }, {
+        label: '기준선 (50점)',
+        data: [50, 50, 50, 50],
+        backgroundColor: 'transparent',
+        borderColor: '#e74c3c',
+        borderWidth: 1.5,
+        borderDash: [6, 4],
+        pointRadius: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        r: { min: 0, max: 100, ticks: { stepSize: 20, font: { size: 11 } },
+          pointLabels: { font: { size: 13, weight: '600' } },
+          grid: { color: '#e0e4e8' } }
+      },
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 12 } } }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════
+// GOOGLE SHEETS SUBMIT
+// ══════════════════════════════════════
+async function submitToSheets() {
+  if (!APPS_SCRIPT_URL) {
+    showToast('Google Apps Script URL이 설정되지 않았습니다. 설정 가이드를 확인하세요.');
+    return;
+  }
+  const scores = calcDomainScores();
+  const fcs = classifyFCS(scores);
+  const r = scores.raw;
+  const fi = calcFI();
+  const q = state.quant;
+
+  const payload = {
+    timestamp: new Date().toISOString(),
+    name: state.personal.name,
+    gender: state.personal.gender,
+    age: state.personal.age,
+    height: state.personal.height,
+    weight: state.personal.weight,
+    // K-FRAIL & FI
+    kfrail: r.kfrail,
+    kfrail_class: r.kfrail === 0 ? '정상' : (r.kfrail <= 2 ? '전노쇠' : '노쇠'),
+    fi: fi.toFixed(3),
+    fi_class: fi < 0.10 ? '정상' : (fi < 0.21 ? '전노쇠' : '노쇠'),
+    // Domain scores (normalized 0-100)
+    B_score: scores.B, P_score: scores.P, S_score: scores.S, F_score: scores.F,
+    // Individual tool raw scores
+    mna: r.mna, cci: r.cci, meds: r.meds,
+    gds: r.gds, kmmse: r.kmmse, sleep: r.sleep,
+    // K-MMSE sub-domains
+    kmmse_time: calcKMMSEsubs().time_orient,
+    kmmse_place: calcKMMSEsubs().place_orient,
+    kmmse_reg: calcKMMSEsubs().memory_reg,
+    kmmse_attention: calcKMMSEsubs().attention,
+    kmmse_recall: calcKMMSEsubs().memory_recall,
+    kmmse_language: calcKMMSEsubs().language,
+    lsns: r.lsns, econ: r.econ, activity: r.activity,
+    mbi: r.mbi, iadl: r.iadl,
+    // FCS type
+    fcs_type: fcs.type + (fcs.csType ? ' + 중추감작형' : ''),
+    // CS module
+    gate: state.gateAnswer || 'no',
+    csi: state.gateAnswer === 'yes' ? getSectionScore('csi') : '',
+    pcs: state.gateAnswer === 'yes' ? getSectionScore('pcs') : '',
+    tsk: state.gateAnswer === 'yes' ? getSectionScore('tsk') : '',
+    // Quantitative variables — individual columns (blank if not entered)
+    q_smi: q.smi ?? '', q_grip_r: q.grip_r ?? '', q_grip_l: q.grip_l ?? '',
+    q_bmi_inbody: q.bmi_inbody ?? '', q_fat_pct: q.fat_pct ?? '', q_phase_angle: q.phase_angle ?? '',
+    q_albumin: q.albumin ?? '', q_hb: q.hb ?? '', q_vitd: q.vitd ?? '', q_crp: q.crp ?? '',
+    q_fvc: q.fvc ?? '', q_fev1: q.fev1 ?? '', q_vo2max: q.vo2max ?? '',
+    q_pfc_r_rest: q.pfc_r_rest ?? '', q_pfc_l_rest: q.pfc_l_rest ?? '',
+    q_dlpfc_r_rest: q.dlpfc_r_rest ?? '', q_dlpfc_l_rest: q.dlpfc_l_rest ?? '',
+    q_ofc_r_rest: q.ofc_r_rest ?? '', q_ofc_l_rest: q.ofc_l_rest ?? '',
+    q_pfc_r_dt: q.pfc_r_dt ?? '', q_pfc_l_dt: q.pfc_l_dt ?? '',
+    q_dlpfc_r_dt: q.dlpfc_r_dt ?? '', q_dlpfc_l_dt: q.dlpfc_l_dt ?? '',
+    q_ofc_r_dt: q.ofc_r_dt ?? '', q_ofc_l_dt: q.ofc_l_dt ?? '',
+    q_gait_speed: q.gait_speed ?? '', q_stride: q.stride ?? '', q_symmetry: q.symmetry ?? '',
+    q_walk6m: q.walk6m ?? '', q_tug: q.tug ?? '',
+    q_posture_grade: q.posture_grade ?? '', q_shoulder_diff: q.shoulder_diff ?? '',
+    q_pelvis_tilt: q.pelvis_tilt ?? '', q_ols_score: q.ols_score ?? '', q_ols_time: q.ols_time ?? '',
+  };
+
+  try {
+    showToast('저장 중...');
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    showToast('✅ Google Sheets에 저장되었습니다!');
+  } catch (e) {
+    showToast('⚠ 저장 실패: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════
+function nextStep() {
+  const visible = getVisibleSections();
+  if (state.step < visible.length - 1) { state.step++; window._scrollToTop = true; render(); }
+}
+function prevStep() {
+  if (state.step > 0) { state.step--; window._scrollToTop = true; render(); }
+}
+function goStep(i) {
+  if (i <= state.step) { state.step = i; window._scrollToTop = true; render(); }
+}
+function resetAll() {
+  state.step = 0;
+  state.personal = { name:'', gender:'', age:'', height:'', weight:'' };
+  state.answers = {};
+  state.cciChecked = {};
+  state.gateAnswer = null;
+  state.quant = {};
+  window._scrollToTop = true;
+  render();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// Init
+window._scrollToTop = true;
+render();
+</script>
+</body>
+</html>
